@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EBS 수특 독서: 마르코프 결정 과정 (MDP) 설명</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <script>
+        window.MathJax = {
+            tex: {
+                // $...$와 \(...\) 모두 인라인 수식으로 인식하도록 설정
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+
+    <style>
+        /* 기본 스타일 및 폰트 */
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 컨테이너 및 레이아웃 */
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        /* 헤더 및 제목 */
+        header {
+            background-color: #004d80;
+            color: white;
+            padding: 30px 0;
+            border-radius: 10px 10px 0 0;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        header h1 {
+            font-weight: 700;
+            font-size: 2.5em;
+            margin: 0;
+        }
+        header p {
+            margin-top: 5px;
+            opacity: 0.8;
+        }
+
+        /* 섹션 스타일 */
+        section {
+            background-color: white;
+            padding: 30px;
+            margin-bottom: 20px;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            border-top: 5px solid #0056b3;
+        }
+
+        /* 제목 및 구분선 */
+        h2 {
+            color: #0056b3;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+            margin-top: 0;
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+        h3 {
+            color: #333;
+            margin-top: 20px;
+            font-size: 1.3em;
+            border-left: 4px solid #71b280;
+            padding-left: 10px;
+        }
+
+        /* 목록 및 표 */
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        ul li {
+            background-color: #f9f9f9;
+            margin-bottom: 8px;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 5px solid #007bff;
+            transition: background-color 0.3s;
+        }
+        ul li strong {
+            color: #004d80;
+            font-weight: 700;
+            margin-right: 5px;
+        }
+        ul li:hover {
+            background-color: #e6f7ff;
+        }
+
+        /* 수식 스타일 (LaTeX와 유사하게) */
+        .math-box {
+            background-color: #eee;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-size: 1.1em;
+            text-align: center;
+            overflow-x: auto;
+        }
+
+        /* 각 요소 색상 */
+        .element-S { color: #f093fb; font-weight: 700; }
+        .element-A { color: #4facfe; font-weight: 700; }
+        .element-P { color: #ff6b6b; font-weight: 700; }
+        .element-R { color: #43e97b; font-weight: 700; }
+        .element-Gamma { color: #FFD700; font-weight: 700; }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>마르코프 결정 과정 (MDP)</h1>
+            <p>EBS 수능특강 독서 주제통합1 핵심 개념 정리</p>
+        </header>
+
+        <section>
+            <h2>1. MDP의 기본 구조: 다섯 가지 핵심 요소</h2>
+            <p>MDP는 에이전트(주체)가 환경과 상호작용하며 최적의 행동을 학습하는 프레임워크입니다. 다음 다섯 가지 요소로 정의됩니다.</p>
+            
+            <ul>
+                <li><strong><span class="element-S">S (State, 상태)</span>:</strong> 에이전트가 처한 현재 상황이나 위치. MDP의 노드에 해당합니다. (예: 교실, 펍, 잠자는 곳)</li>
+                <li><strong><span class="element-A">A (Action, 행동)</span>:</strong> 에이전트가 특정 상태에서 선택할 수 있는 행위. (예: 공부하기, Facebook 보기, 잠자기)</li>
+                <li><strong><span class="element-P">P (Transition Probability, 상태 변이 확률)</span>:</strong> 특정 상태(<span class="element-S">S</span>)에서 특정 행동(<span class="element-A">A</span>)을 취했을 때, 다음 상태(<span class="element-S">S'</span>)로 이동할 확률. <br> $P(s' | s, a)$로 표기하며, 환경의 **규칙**이므로 변하지 않습니다.</li>
+                <li><strong><span class="element-R">R (Reward, 보상)</span>:</strong> 에이전트가 행동(<span class="element-A">A</span>)의 결과로 환경으로부터 즉시 받는 피드백.</li>
+                <li><strong><span class="element-Gamma">$\gamma$ (Discount Factor, 감쇄/할인 계수)</span>:</strong> 미래에 받을 보상의 가치를 현재 시점으로 환산하는 비율 ($0 \le \gamma \le 1$). 장기적인 계획을 세우는 척도입니다.</li>
+            </ul>
+
+            <div class="math-box">
+                $$\text{MDP는 } (\text{S, A, P, R, }\gamma) \text{의 튜플로 정의된다.}$$
+            </div>
+            
+        </section>
+
+        <section>
+            <h2>2. MDP의 목표: 가치 함수와 정책 ($\pi$)</h2>
+            <p>MDP를 해결한다는 것은 누적 보상(Return, $G$)을 최대화하는 최적의 행동 방식을 찾는 것입니다. 이는 **가치 함수**와 **정책**을 통해 달성됩니다.</p>
+
+            <h3>2.1. 누적 보상 (Return, G)</h3>
+            <p>에이전트가 미래에 받을 모든 보상을 할인 계수 $\gamma$를 적용하여 합산한 값입니다. 에이전트는 이 누적 보상을 최대화하도록 학습합니다.</p>
+            <div class="math-box">
+                $$\text{누적 보상 } G_t = \sum_{k=0}^{\infty} \gamma^k R_{t+k+1}$$
+            </div>
+
+            <h3>2.2. 가치 함수 (Value Function, V)</h3>
+            <p>특정 상태(<span class="element-S">S</span>)에서 에이전트가 **현재 정책($\pi$)을 따랐을 때** 기대할 수 있는 장기적인 누적 보상값입니다. 특정 상태가 얼마나 좋은지를 나타냅니다.</p>
+            <div class="math-box">
+                $$V^{\pi}(s) = E_{\pi} [G_t | S_t = s]$$
+            </div>
+            
+            <h3>2.3. 정책 (Policy, $\pi$)</h3>
+            <p>특정 상태(<span class="element-S">S</span>)에서 에이전트가 **어떤 행동(<span class="element-A">A</span>)을 선택할지**에 대한 확률 분포입니다. 강화 학습의 궁극적인 목표는 $V(s)$를 최대화하는 **최적 정책 ($\pi^*$)**을 찾는 것입니다.</p>
+            <div class="math-box">
+                $$\pi(a|s) = P(\text{Action } a \text{ at State } s)$$
+            </div>
+            
+            
+
+        </section>
+        
+        <section>
+            <h2>3. 보조 개념: Q-가치 함수 (Q-Value Function)</h2>
+            <p>Q-가치 함수는 V-함수보다 더 구체적인 정보, 즉 "어떤 상태에서 어떤 행동을 했을 때"의 가치를 측정합니다.</p>
+            
+            <ul>
+                <li><strong>$Q^{\pi}(s, a)$:</strong> 상태 $s$에서 행동 $a$를 취한 후, 정책 $\pi$를 계속 따랐을 때 기대되는 누적 보상입니다.</li>
+                <li><strong>최적 정책 결정:</strong> $\pi^*$는 모든 $Q(s, a)$ 중에서 가장 높은 가치를 가지는 $a$를 선택하도록 합니다. 이 때문에 Q-함수는 행동 선택에 직접적으로 사용됩니다.</li>
+            </ul>
+
+        </section>
+        
+        <footer>
+            <p style="text-align:center; font-size:0.8em; color:#888; margin-top:20px;">본 설명 자료는 수능특강 독서 지문의 이해를 돕기 위해 작성되었습니다. 2025</p>
+        </footer>
+
+    </div>
+
+</body>
+</html>

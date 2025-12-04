@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Q-Learning MDP 시뮬레이션 (보상 표시)</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <style>
+        /* 기본 스타일 */
+        * { box-sizing: border-box; margin:0; padding:0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0c29; color: #fff; line-height:1.4; overflow-x: hidden; }
+        section { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; background: linear-gradient(135deg, #134e5e 0%, #71b280 100%); }
+        .simulation-container { display: flex; justify-content: center; align-items: flex-start; gap: 20px; width: 100%; max-width: 1400px; margin: 0 auto; }
+        .mdp-stage { position: relative; width: 1000px; height: 600px; background: rgba(0,0,0,0.3); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .policy-panel { background: rgba(0,0,0,0.5); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); height: 600px; display: flex; flex-direction: column; }
+        .stage-wrapper { flex: 2; min-width: 0; }
+        .panel-wrapper { flex: 1; min-width: 320px; max-width: 400px; }
+        .state-node { position: absolute; width: 80px; height: 80px; background: #fff; border: 4px solid #667eea; border-radius: 50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:#222; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 10; font-size: 0.85rem; text-align: center; transform: translate(-50%, -50%); }
+        .state-node.rectangle { border-radius:12px; width: 100px; height: 70px; }
+        .state-node.pass { background: #4CAF50; border-color: #2E7D32; color: white; }
+        .facebook { left: 200px; top: 100px; } .sleep    { left: 400px; top: 100px; } .class1   { left: 200px; top: 300px; }
+        .class2   { left: 400px; top: 300px; } .class3   { left: 600px; top: 300px; } .pass     { left: 800px; top: 300px; }
+        .pub      { left: 400px; top: 500px; }
+        .agent { position: absolute; width: 44px; height: 44px; background: #ff0055; border: 3px solid white; border-radius: 50%; z-index: 50; display:flex; align-items:center; justify-content:center; font-size:1.4rem; box-shadow: 0 0 20px #ff0055; transform: translate(-50%, -50%); }
+        .info-overlay { position: absolute; top: 10px; left: 10px; z-index: 20; background: rgba(0,0,0,0.7); padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; }
+        .info-overlay > div { margin-bottom: 5px; }
+        .info-big { font-size: 1.1rem; font-weight: 800; color: #FFD700; margin-left:5px; }
+        
+        /* 정책 및 파라미터 패널 스타일 */
+        .panel-section { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 15px; }
+        .policy-title { font-size:1.1rem; font-weight:700; color:#FFD700; margin-bottom:10px; text-align:center; }
+        .policy-row { margin-bottom: 25px; } .policy-header { display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem; font-weight:600; }
+        .bar-bg { width:100%; height:14px; background:rgba(255,255,255,0.1); border-radius:7px; overflow:hidden; display:flex; }
+        .bar-segment { height:100%; transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+        .legend { font-size:0.8rem; color:#aaa; margin-top:6px; display:flex; gap:12px; }
+        .legend-box { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; }
+        .c-pub { background: #ff6b6b; } .c-study { background: #4facfe; } .c-fb { background: #f093fb; } .c-sleep { background: #a8edea; } .c-pass { background: #43e97b; }
+        .controls { margin-top:20px; display:flex; gap:15px; } 
+        .btn { background: #fff; color:#222; border:none; padding:12px 24px; border-radius:30px; font-weight:700; cursor:pointer; font-size:1rem; }
+        #btnRunBatchEpisode { background: #FFD700; }
+        #btnRunSingleEpisode { background: #4CAF50; color: white; }
+        
+        /* 파라미터 컨트롤 스타일 */
+        .param-control { margin-bottom: 15px; }
+        .param-label { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            font-size: 0.9rem; 
+            margin-bottom: 5px; 
+            font-weight: 600; 
+        }
+        input[type="range"] { width: 100%; height: 8px; border-radius: 5px; background: #d3d3d3; outline: none; opacity: 0.7; -webkit-transition: .2s; transition: opacity .2s; }
+        
+        /* 툴팁 스타일 */
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+            cursor: help; 
+        }
+        .param-name {
+            border-bottom: 1px dotted rgba(255, 255, 255, 0.7); 
+            padding-bottom: 1px;
+        }
+        .tooltip-text {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 100;
+            bottom: 125%; 
+            left: 50%;
+            margin-left: -125px; 
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-weight: 400;
+            font-size: 0.8rem;
+            line-height: 1.3;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .tooltip-container:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        /* 보상 팝업 스타일 */
+        .reward-popup {
+            position: absolute;
+            background: #FFD700;
+            color: #222;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            z-index: 60;
+            pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            opacity: 0;
+            transform: translate(-50%, 0);
+        }
+        .positive-reward { background: #4CAF50; color: white; }
+        .negative-reward { background: #ff6b6b; color: white; }
+        .zero-reward { background: #ccc; color: #222; }
+
+        /* SVG Arrow Styling */
+        .mdp-arrows { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; }
+    </style>
+</head>
+<body>
+
+    <section class="bg-gradient-main">
+        <h1>Q-Learning MDP 시뮬레이션</h1>
+        <p class="subtitle">학습 속도와 관찰 모드를 버튼으로 선택하여 진행할 수 있습니다.</p>
+
+        <div class="simulation-container">
+            
+            <div class="stage-wrapper">
+                <div class="mdp-stage" id="stage">
+                    
+                    <svg class="mdp-arrows" viewBox="0 0 1000 600" fill="none" stroke="#ccc" stroke-width="2">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#ccc" />
+                            </marker>
+                        </defs>
+                        
+                        <line x1="240" y1="300" x2="360" y2="300" stroke-width="3" marker-end="url(#arrowhead)" />
+                        <line x1="440" y1="300" x2="560" y2="300" stroke-width="3" marker-end="url(#arrowhead)" />
+                        <line x1="640" y1="300" x2="760" y2="300" stroke-width="3" marker-end="url(#arrowhead)" />
+                        
+                        <path d="M 230 260 A 30 30 0 1 1 170 260" stroke="#ff0055" marker-end="url(#arrowhead)" />
+                        <path d="M 430 260 A 30 30 0 1 1 370 260" stroke="#ff0055" marker-end="url(#arrowhead)" />
+                        <path d="M 230 60 A 30 30 0 1 1 170 60" stroke="#ff0055" marker-end="url(#arrowhead)" />
+                        <path d="M 430 60 A 30 30 0 1 1 370 60" stroke="#ff0055" marker-end="url(#arrowhead)" />
+                        
+                        <line x1="200" y1="260" x2="200" y2="140" marker-end="url(#arrowhead)" />
+                        <line x1="400" y1="260" x2="400" y2="140" marker-end="url(#arrowhead)" />
+                        <path d="M 200 340 C 300 400, 350 450, 400 460" marker-end="url(#arrowhead)" />
+                        <line x1="400" y1="340" x2="400" y2="460" marker-end="url(#arrowhead)" />
+                        <path d="M 600 340 C 500 400, 450 450, 400 460" marker-end="url(#arrowhead)" />
+
+                        <path d="M 400 460 C 300 400, 250 350, 200 340" stroke="#4CAF50" marker-end="url(#arrowhead)" />
+                        <line x1="400" y1="460" x2="400" y2="340" stroke="#4CAF50" marker-end="url(#arrowhead)" />
+                        <path d="M 400 460 C 500 400, 550 350, 600 340" stroke="#4CAF50" marker-end="url(#arrowhead)" />
+                    </svg>
+
+                    <div class="state-node facebook">FB</div>
+                    <div class="state-node rectangle sleep">Sleep</div>
+                    <div class="state-node class1">Class 1</div>
+                    <div class="state-node class2">Class 2</div>
+                    <div class="state-node class3">Class 3</div>
+                    <div class="state-node pass">Pass</div>
+                    <div class="state-node pub">Pub</div>
+                    
+                    <div class="agent" id="agent">🤖</div>
+                    
+                    <div class="info-overlay">
+                        <div>Episode: <span id="ep-disp" class="info-big">0</span></div>
+                        <div>Cumulative Reward: <span id="cumulative-score-disp" class="info-big">0</span></div>
+                        <div>Average Reward: <span id="avg-score-disp" class="info-big">0</span></div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" id="btnRunBatchEpisode">🚀 에피소드 100회 빠르게 학습</button>
+                    <button class="btn" id="btnRunSingleEpisode">▶ 에피소드 1회 천천히 실행</button>
+                    <button class="btn" id="btnReset">↺ Q-테이블 리셋</button>
+                </div>
+            </div>
+
+            <div class="panel-wrapper">
+                <div class="policy-panel">
+                    
+                    <div class="panel-section">
+                        <div class="policy-title">⚙️ Q-Learning 매개변수 설정</div>
+                        
+                        <div class="param-control">
+                            <div class="param-label">
+                                <span class="tooltip-container">
+                                    <span class="param-name">학습률 (&alpha;)</span>
+                                    <span class="tooltip-text">
+                                        <span style="font-weight: 700;">Q-값 업데이트 시</span> 이전 값과 새 정보를 얼마나 반영할지 결정합니다. 
+                                        <span style="font-weight: 700;">1에 가까울수록</span> 새로운 학습 정보에 가중치를 많이 둡니다. (0.01 ~ 1.0)
+                                    </span>
+                                </span>
+                                <span id="alpha-val">0.10</span>
+                            </div>
+                            <input type="range" id="input-alpha" min="0.01" max="1.0" step="0.01" value="0.10">
+                        </div>
+                        
+                        <div class="param-control">
+                            <div class="param-label">
+                                <span class="tooltip-container">
+                                    <span class="param-name">감쇄 계수 (&gamma;)</span>
+                                    <span class="tooltip-text">
+                                        <span style="font-weight: 700;">미래 보상</span>을 현재 얼마나 중요하게 여길지 결정합니다. 
+                                        <span style="font-weight: 700;">1에 가까울수록</span> 먼 미래의 보상도 중요하게 생각하여 장기적인 정책을 학습합니다. (0.01 ~ 0.99)
+                                    </span>
+                                </span>
+                                <span id="gamma-val">0.90</span>
+                            </div>
+                            <input type="range" id="input-gamma" min="0.01" max="0.99" step="0.01" value="0.90">
+                        </div>
+                        
+                        <div class="param-control">
+                            <div class="param-label">
+                                <span class="tooltip-container">
+                                    <span class="param-name">탐험률 (&epsilon;)</span>
+                                    <span class="tooltip-text">
+                                        <span style="font-weight: 700;">무작위 행동</span>을 선택할 확률입니다. 
+                                        <span style="font-weight: 700;">값이 높으면</span> Q-테이블과 상관없이 탐험을 많이 합니다. 시간이 지남에 따라 점차 줄이는 것이 일반적입니다. (0.01 ~ 1.0)
+                                    </span>
+                                </span>
+                                <span id="epsilon-val">0.10</span>
+                            </div>
+                            <input type="range" id="input-epsilon" min="0.01" max="1.0" step="0.01" value="0.10">
+                        </div>
+                    </div>
+                    
+                    <div class="panel-section" style="border-bottom:none;">
+                        <div class="policy-title">📊 상태별 행동 확률</div>
+                        
+                        <div class="policy-row">
+                            <div class="policy-header"><span>Class 1</span><span id="txt-c1">Init</span></div>
+                            <div class="bar-bg">
+                                <div class="bar-segment c-fb" id="bar-c1-facebook" style="width:33%;"></div>
+                                <div class="bar-segment c-study" id="bar-c1-study" style="width:33%;"></div>
+                                <div class="bar-segment c-pub" id="bar-c1-pub" style="width:34%;"></div>
+                            </div>
+                            <div class="legend">
+                                <span><span class="legend-box c-fb"></span>FB</span>
+                                <span><span class="legend-box c-study"></span>Study</span>
+                                <span><span class="legend-box c-pub"></span>Pub</span>
+                            </div>
+                        </div>
+
+                        <div class="policy-row">
+                            <div class="policy-header"><span>Class 2</span><span id="txt-c2">Init</span></div>
+                            <div class="bar-bg">
+                                <div class="bar-segment c-sleep" id="bar-c2-sleep" style="width:33%;"></div>
+                                <div class="bar-segment c-study" id="bar-c2-study" style="width:33%;"></div>
+                                <div class="bar-segment c-pub" id="bar-c2-pub" style="width:34%;"></div>
+                            </div>
+                            <div class="legend">
+                                <span><span class="legend-box c-sleep"></span>Sleep</span>
+                                <span><span class="legend-box c-study"></span>Study</span>
+                                <span><span class="legend-box c-pub"></span>Pub</span>
+                            </div>
+                        </div>
+
+                        <div class="policy-row">
+                            <div class="policy-header"><span>Class 3</span><span id="txt-c3">Init</span></div>
+                            <div class="bar-bg">
+                                <div class="bar-segment c-study" id="bar-c3-study" style="width:50%;"></div>
+                                <div class="bar-segment c-pub" id="bar-c3-pub" style="width:50%;"></div>
+                            </div>
+                            <div class="legend">
+                                <span><span class="legend-box c-study"></span>Study (Pass)</span>
+                                <span><span class="legend-box c-pub"></span>Pub</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // --- CONSTANTS ---
+        const EPISODE_LIMIT = 50; 
+        const VISUAL_DELAY_MS = 1000; // 400ms -> 1000ms 로 변경
+        const AGENT_MOVE_DURATION = 0.8; // 이동 애니메이션도 살짝 늘림
+
+        const nodes = {
+            class1: { x: 200, y: 300 }, class2: { x: 400, y: 300 }, class3: { x: 600, y: 300 },
+            facebook: { x: 200, y: 100 }, sleep:    { x: 400, y: 100 }, pub: { x: 400, y: 500 },
+            pass:     { x: 800, y: 300 }
+        };
+        const STATES = ['class1', 'class2', 'class3', 'facebook', 'sleep', 'pub'];
+        const ACTIONS = {
+            class1: ['study', 'facebook', 'pub'], class2: ['study', 'sleep', 'pub'], class3: ['study', 'pub'],
+            facebook: ['study'], sleep: ['study'], pub: ['return']
+        };
+        const REWARDS = {
+            'class1': { 'study': -2, 'facebook': -1, 'pub': +1 }, 'class2': { 'study': -2, 'sleep': 0, 'pub': +1 },
+            'class3': { 'study': +10, 'pub': +1 }, 'facebook': { 'study': 0 }, 'sleep': { 'study': 0 }, 'pub': { 'return': 0 }
+        };
+        const TRANSITIONS = {
+            'class1': { 'study': { 'class2': 0.9, 'class1': 0.1 }, 'facebook': { 'facebook': 0.8, 'class1': 0.2 }, 'pub': { 'pub': 1.0 } },
+            'class2': { 'study': { 'class3': 0.9, 'class2': 0.1 }, 'sleep': { 'sleep': 1.0 }, 'pub': { 'pub': 1.0 } },
+            'class3': { 'study': { 'pass': 1.0 }, 'pub': { 'pub': 1.0 } },
+            'facebook': { 'study': { 'class1': 1.0 } }, 'sleep': { 'study': { 'class2': 1.0 } },
+            'pub': { 'return': { 'class1': 0.3, 'class2': 0.4, 'class3': 0.3 } }
+        };
+
+        // --- RL VARIABLES ---
+        let Q_TABLE = {};
+        let current_state = 'class1';
+        let total_episodes = 0;
+        let cumulative_score = 0;
+        let average_score = 0;
+        let run_in_progress = false;
+
+        // --- DOM ELEMENTS ---
+        const stage = document.getElementById('stage');
+        const agent = document.getElementById('agent');
+        const epDisp = document.getElementById('ep-disp');
+        const cumulativeScoreDisp = document.getElementById('cumulative-score-disp');
+        const avgScoreDisp = document.getElementById('avg-score-disp');
+        const btnRunSingleEpisode = document.getElementById('btnRunSingleEpisode');
+        const btnRunBatchEpisode = document.getElementById('btnRunBatchEpisode');
+        
+        // Parameter Inputs
+        const inputAlpha = document.getElementById('input-alpha');
+        const inputGamma = document.getElementById('input-gamma');
+        const inputEpsilon = document.getElementById('input-epsilon');
+        const alphaValDisp = document.getElementById('alpha-val');
+        const gammaValDisp = document.getElementById('gamma-val');
+        const epsilonValDisp = document.getElementById('epsilon-val');
+
+        // --- PARAMETER GETTERS ---
+        function getAlpha() { return parseFloat(inputAlpha.value); }
+        function getGamma() { return parseFloat(inputGamma.value); }
+        function getEpsilon() { return parseFloat(inputEpsilon.value); }
+        
+        // --- EVENT LISTENERS FOR SLIDERS ---
+        inputAlpha.oninput = () => { alphaValDisp.innerText = getAlpha().toFixed(2); };
+        inputGamma.oninput = () => { gammaValDisp.innerText = getGamma().toFixed(2); };
+        inputEpsilon.oninput = () => { epsilonValDisp.innerText = getEpsilon().toFixed(2); };
+
+
+        // --- RL UTILITIES ---
+        function initQTable() {
+            Q_TABLE = {};
+            STATES.forEach(s => {
+                Q_TABLE[s] = {};
+                ACTIONS[s].forEach(a => {
+                    Q_TABLE[s][a] = 0;
+                });
+            });
+        }
+
+        function selectAction(s) {
+            const EPSILON = getEpsilon();
+            const possibleActions = ACTIONS[s];
+            if (Math.random() < EPSILON) {
+                return possibleActions[Math.floor(Math.random() * possibleActions.length)];
+            } else {
+                let maxQ = -Infinity;
+                let tiedActions = [];
+                possibleActions.forEach(a => {
+                    const qVal = Q_TABLE[s][a];
+                    if (qVal > maxQ) {
+                        maxQ = qVal;
+                        tiedActions = [a];
+                    } else if (qVal === maxQ) {
+                        tiedActions.push(a);
+                    }
+                });
+                return tiedActions[Math.floor(Math.random() * tiedActions.length)];
+            }
+        }
+
+        function getNextStateAndReward(s, a) {
+            const transitionProbs = TRANSITIONS[s][a];
+            const reward = REWARDS[s][a];
+
+            if (s === 'class3' && a === 'study') return { next_state: 'pass', reward: reward };
+            if (s === 'facebook' && a === 'study') return { next_state: 'class1', reward: reward };
+            if (s === 'sleep' && a === 'study') return { next_state: 'class2', reward: reward };
+
+            let cumulativeProb = 0;
+            const rand = Math.random();
+            for (const s_prime in transitionProbs) {
+                cumulativeProb += transitionProbs[s_prime];
+                if (rand < cumulativeProb) {
+                    return { next_state: s_prime, reward: reward };
+                }
+            }
+            return { next_state: Object.keys(transitionProbs)[Object.keys(transitionProbs).length - 1], reward: reward };
+        }
+
+        function updateQValue(s, a, r, s_prime) {
+            const ALPHA = getAlpha();
+            const GAMMA = getGamma();
+            let maxQPrime = 0;
+            if (s_prime !== 'pass' && STATES.includes(s_prime)) {
+                const possibleActionsPrime = ACTIONS[s_prime];
+                maxQPrime = Math.max(...possibleActionsPrime.map(a_prime => Q_TABLE[s_prime][a_prime]));
+            }
+
+            // Q-Learning Formula
+            Q_TABLE[s][a] += ALPHA * (r + GAMMA * maxQPrime - Q_TABLE[s][a]);
+        }
+
+        // --- VISUALIZATION & CONTROL ---
+        
+        // 보상 표시 함수
+        function showRewardPopup(x, y, reward) {
+            const popup = document.createElement('div');
+            popup.className = 'reward-popup';
+
+            if (reward > 0) {
+                popup.classList.add('positive-reward');
+                popup.innerText = `+${reward.toFixed(0)}`;
+            } else if (reward < 0) {
+                popup.classList.add('negative-reward');
+                popup.innerText = `${reward.toFixed(0)}`;
+            } else {
+                popup.classList.add('zero-reward');
+                popup.innerText = '0';
+            }
+
+            // 위치 설정 (이전 상태와 다음 상태의 중간쯤에 표시)
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y - 20}px`; // 살짝 위로 띄움
+            
+            stage.appendChild(popup);
+
+            // GSAP 애니메이션 (나타나서 사라짐)
+            gsap.to(popup, {
+                opacity: 1,
+                y: '-=40', // 위로 이동
+                duration: 0.4,
+                ease: 'power1.out',
+                onComplete: () => {
+                    gsap.to(popup, {
+                        opacity: 0,
+                        duration: 0.3,
+                        delay: AGENT_MOVE_DURATION / 2, // 이동 시간 중간쯤에 사라지기 시작
+                        onComplete: () => popup.remove()
+                    });
+                }
+            });
+        }
+        
+        function updatePolicyDisplay() {
+            // (생략: 기존 코드와 동일)
+            const statePolicies = { class1: {}, class2: {}, class3: {} };
+
+            ['class1', 'class2', 'class3'].forEach(s => {
+                const qValues = ACTIONS[s].map(a => Q_TABLE[s][a]);
+                const minQ = Math.min(...qValues);
+                let totalScore = 0;
+                const scores = {};
+
+                ACTIONS[s].forEach(a => {
+                    scores[a] = Q_TABLE[s][a] - minQ + 0.1;
+                    totalScore += scores[a];
+                });
+
+                ACTIONS[s].forEach(a => {
+                    const percent = (scores[a] / totalScore) * 100;
+                    statePolicies[s][a] = percent;
+                });
+            });
+
+            gsap.to('#bar-c1-facebook', { width: (statePolicies.class1.facebook || 0) + '%' });
+            gsap.to('#bar-c1-study', { width: (statePolicies.class1.study || 0) + '%' });
+            gsap.to('#bar-c1-pub', { width: (statePolicies.class1.pub || 0) + '%' });
+            document.getElementById('txt-c1').innerText = `Study: ${statePolicies.class1.study.toFixed(1)}%`;
+
+            gsap.to('#bar-c2-sleep', { width: (statePolicies.class2.sleep || 0) + '%' });
+            gsap.to('#bar-c2-study', { width: (statePolicies.class2.study || 0) + '%' });
+            gsap.to('#bar-c2-pub', { width: (statePolicies.class2.pub || 0) + '%' });
+            document.getElementById('txt-c2').innerText = `Study: ${statePolicies.class2.study.toFixed(1)}%`;
+
+            gsap.to('#bar-c3-study', { width: (statePolicies.class3.study || 0) + '%' });
+            gsap.to('#bar-c3-pub', { width: (statePolicies.class3.pub || 0) + '%' });
+            document.getElementById('txt-c3').innerText = `Study: ${statePolicies.class3.study.toFixed(1)}%`;
+        }
+        
+        // 보상 팝업을 포함한 에이전트 이동 함수
+        function moveAgentWithReward(s, s_prime, reward) {
+            const current = nodes[s];
+            const target = nodes[s_prime];
+
+            // 1. 에이전트 이동
+            gsap.to(agent, {
+                x: target.x,
+                y: target.y,
+                duration: AGENT_MOVE_DURATION, // 변경된 상수 사용
+                ease: "power2.inOut"
+            });
+
+            // 2. 보상 팝업 표시
+            const midX = (current.x + target.x) / 2;
+            const midY = (current.y + target.y) / 2;
+            showRewardPopup(midX, midY, reward);
+        }
+
+        async function runEpisode(visualize) {
+            current_state = 'class1';
+            let episode_score = 0;
+            total_episodes++;
+            epDisp.innerText = total_episodes;
+
+            gsap.set(agent, { x: nodes.class1.x, y: nodes.class1.y });
+            if (visualize) await new Promise(resolve => setTimeout(resolve, VISUAL_DELAY_MS));
+
+            for (let step = 0; step < EPISODE_LIMIT; step++) {
+                const s = current_state;
+                if (s === 'pass') break;
+
+                const a = selectAction(s);
+                const { next_state: s_prime, reward: r } = getNextStateAndReward(s, a);
+
+                updateQValue(s, a, r, s_prime);
+
+                episode_score += r;
+
+                if (visualize) {
+                    // 수정된 함수 사용: 이동과 보상 표시를 동시에 처리
+                    moveAgentWithReward(s, s_prime, r); 
+                    updatePolicyDisplay();
+                    await new Promise(resolve => setTimeout(resolve, VISUAL_DELAY_MS)); // 지연 시간 증가
+                }
+
+                current_state = s_prime;
+            }
+
+            cumulative_score += episode_score;
+            average_score = cumulative_score / total_episodes;
+
+            cumulativeScoreDisp.innerText = cumulative_score.toFixed(2);
+            avgScoreDisp.innerText = average_score.toFixed(2);
+
+            updatePolicyDisplay();
+        }
+
+        // 1. 100회 빠르게 학습
+        async function runBatchLearning() {
+            if (run_in_progress) return;
+            run_in_progress = true;
+            btnRunBatchEpisode.disabled = true;
+            btnRunSingleEpisode.disabled = true;
+            btnRunBatchEpisode.innerText = '학습 중...';
+
+            for (let i = 0; i < 100; i++) {
+                await runEpisode(false);
+                if (i % 20 === 0) await new Promise(resolve => setTimeout(resolve, 5));
+            }
+
+            btnRunBatchEpisode.innerText = '🚀 에피소드 100회 빠르게 학습';
+            btnRunBatchEpisode.disabled = false;
+            btnRunSingleEpisode.disabled = false;
+            run_in_progress = false;
+        }
+
+        // 2. 1회 천천히 실행
+        async function runSingleVisualEpisode() {
+            if (run_in_progress) return;
+            run_in_progress = true;
+            btnRunSingleEpisode.disabled = true;
+            btnRunBatchEpisode.disabled = true;
+            btnRunSingleEpisode.innerText = '실행 중...';
+
+            await runEpisode(true);
+
+            btnRunSingleEpisode.innerText = '▶ 에피소드 1회 천천히 실행';
+            btnRunSingleEpisode.disabled = false;
+            btnRunBatchEpisode.disabled = false;
+            run_in_progress = false;
+        }
+
+        function resetSimulation() {
+            initQTable();
+            current_state = 'class1';
+            total_episodes = 0;
+            cumulative_score = 0;
+            average_score = 0;
+            epDisp.innerText = 0;
+            cumulativeScoreDisp.innerText = 0;
+            avgScoreDisp.innerText = 0;
+            gsap.set(agent, { x: nodes.class1.x, y: nodes.class1.y });
+            
+            alphaValDisp.innerText = getAlpha().toFixed(2);
+            gammaValDisp.innerText = getGamma().toFixed(2);
+            epsilonValDisp.innerText = getEpsilon().toFixed(2);
+            
+            updatePolicyDisplay();
+        }
+
+        // --- INITIALIZATION ---
+        document.getElementById('btnRunBatchEpisode').addEventListener('click', runBatchLearning);
+        document.getElementById('btnRunSingleEpisode').addEventListener('click', runSingleVisualEpisode);
+        document.getElementById('btnReset').addEventListener('click', resetSimulation);
+
+        resetSimulation();
+    </script>
+</body>
+</html>
